@@ -2,15 +2,12 @@ import 'reflect-metadata'
 import './database'
 import express from 'express'
 
+import { router } from './routes'
+
 const app = express()
 
-app.get("/", (request, response) => {
-  return response.send({message: "Hello World!"})
-})
-
-app.post("/", (request, response) => {
-  return response.json({message: "Os dados foram salvos com sucesso"})
-})
+app.use(express.json())
+app.use(router)
 
 const port = 8080
 app.listen(port, () => console.log(`Server is running on port ${port}`))

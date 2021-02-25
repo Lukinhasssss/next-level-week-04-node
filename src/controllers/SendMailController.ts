@@ -3,6 +3,7 @@ import { getCustomRepository } from "typeorm";
 import { SurveyRepository } from "../repositories/SurveyRepository";
 import { SurveyUserRepository } from "../repositories/SurveyUserRepository";
 import { UserRepository } from "../repositories/UserRepository";
+import { resolve } from 'path'
 import SendMailService from "../services/SendMailService";
 
 class SendMailController {
@@ -13,9 +14,9 @@ class SendMailController {
     const surveyRepository = getCustomRepository(SurveyRepository)
     const surveyUserRepository = getCustomRepository(SurveyUserRepository)
 
-    const userAlreadyExists = await userRepository.findOne({email})
+    const user = await userRepository.findOne({email})
 
-    if (!userAlreadyExists) {
+    if (!user) {
       return response.status(400).json({
         error: "User does not exists!"
       })
@@ -29,15 +30,36 @@ class SendMailController {
       })
     }
 
+    const variables = {
+      name: user.name,
+      title: survey.title,
+      description: survey.description,
+      user_id: user.id,
+      link: process.env.URL_MAIL
+    }
+
+    const npsPath = resolve(__dirname, "..", "views", "emails", "npsMail.hbs")
+
+    const surveyUserAlreadyExists = await surveyUserRepository.findOne({
+      where: [{user_id: user.id}, {value: null}],
+      relations: ["user", "survey"]
+    })
+
+    if (surveyUserAlreadyExists) {
+      await SendMailService.execute(email, survey.title, variables, npsPath)
+      return response.json(surveyUserAlreadyExists)
+    }
+
     // Salvar as informações na tabela surveyUser
     const surveyUser = surveyUserRepository.create({
-      user_id: userAlreadyExists.id,
+      user_id: user.id,
       survey_id
     })
-    await surveyUserRepository.save(surveyUser)
-    // Enviar e-mail para o usuário
 
-    await SendMailService.execute(email, survey.title, survey.description)
+    await surveyUserRepository.save(surveyUser)
+
+    // Enviar e-mail para o usuário
+    await SendMailService.execute(email, survey.title, variables, npsPath)
 
     return response.json(surveyUser)
   }
